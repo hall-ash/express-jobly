@@ -17,9 +17,11 @@ const { UnauthorizedError } = require("../expressError");
 
 function authenticateJWT(req, res, next) {
   try {
-    const authHeader = req.headers && req.headers.authorization;
+
+    const authHeader = req.headers && req.headers.authorization; // get JWT from req header
+  
     if (authHeader) {
-      const token = authHeader.replace(/^[Bb]earer /, "").trim();
+      const token = authHeader.replace(/^[Bb]earer /, "").trim(); // remove 'Bearer' and trailing whitespace
       res.locals.user = jwt.verify(token, SECRET_KEY);
     }
     return next();
@@ -42,8 +44,27 @@ function ensureLoggedIn(req, res, next) {
   }
 }
 
+/** Middleware to ensure that the user is an admin.
+ * 
+ * If not, raises 401 Unauthorized.
+ */
+const ensureAdmin = (req, res, next) => {
+  try {
+    const { user } = res.locals;
+    if (user && user.isAdmin) {
+      return next();
+    }
+    
+    throw new UnauthorizedError();
+
+  } catch (err) {
+    return next(err);
+  }
+}
+
 
 module.exports = {
   authenticateJWT,
   ensureLoggedIn,
+  ensureAdmin
 };

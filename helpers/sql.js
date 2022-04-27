@@ -51,4 +51,41 @@ const validateArgs = (dataToUpdate, jsToSql) => {
   if (Object.keys(dataToUpdate).length === 0) throw new BadRequestError("No data");
 }
 
-module.exports = { sqlForPartialUpdate };
+
+
+/**
+ * Returns an object containing the sql conditions for a WHERE clause.
+ * 
+ * @param {*} criteria 
+ * @returns 
+ */
+const sqlForFilteringCompaniesBy = criteria => {
+
+  const criteriaToSql = {
+    name: 'name ILIKE',
+    minEmployees: 'num_employees >=',
+    maxEmployees: 'num_employees <='
+  };
+
+  const { minEmployees, maxEmployees } = criteria;
+
+  if (minEmployees && maxEmployees && minEmployees > maxEmployees) {
+    throw new BadRequestError("maxEmployees must be greater than or equal to minEmployees");
+  }
+
+  const values = [];
+  const sqlConditions = Object.keys(criteria).filter(criterion => criterion in criteriaToSql).map((criterion, idx) => {
+    criterion === 'name' ? values.push(`%${criteria[criterion]}%`)
+          : values.push(criteria[criterion]);
+    return `${criteriaToSql[criterion]} $${idx + 1}`;
+  });
+
+  if (sqlConditions.length === 0) throw new BadRequestError('Could not filter by criteria provided');
+
+  return {
+    sqlConditions: sqlConditions.join(" AND "),
+    values
+  };
+}
+
+module.exports = { sqlForPartialUpdate, sqlForFilteringCompaniesBy };
