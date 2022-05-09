@@ -10,7 +10,6 @@ const {
 } = require("../expressError");
 
 const { BCRYPT_WORK_FACTOR } = require("../config.js");
-const app = require("../app");
 
 /** Related functions for users. */
 
@@ -59,16 +58,8 @@ class User {
 
   static async register(
       { username, password, firstName, lastName, email, isAdmin }) {
-    const duplicateCheck = await db.query(
-          `SELECT username
-           FROM users
-           WHERE username = $1`,
-        [username],
-    );
-
-    if (duplicateCheck.rows[0]) {
-      throw new BadRequestError(`Duplicate username: ${username}`);
-    }
+    
+    await checkDuplicate('users', 'username', username);
 
     const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR);
 
