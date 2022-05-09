@@ -1,65 +1,60 @@
+// setup for routes tests
+
 "use strict";
 
+const _ = require('lodash');
 const db = require("../db.js");
 const User = require("../models/user");
 const Company = require("../models/company");
 const { createToken } = require("../helpers/tokens");
+const Job = require("../models/job.js");
 
 async function commonBeforeAll() {
+  // clear data in tables
+  const tables = ['companies', 'users', 'jobs', 'applications'];
   // noinspection SqlWithoutWhere
-  await db.query("DELETE FROM users");
-  // noinspection SqlWithoutWhere
-  await db.query("DELETE FROM companies");
+  await Promise.all(tables.map(t => db.query(`DELETE FROM ${t}`)));
 
-  await Company.create(
-      {
-        handle: "c1",
-        name: "C1",
-        numEmployees: 1,
-        description: "Desc1",
-        logoUrl: "http://c1.img",
-      });
-  await Company.create(
-      {
-        handle: "c2",
-        name: "C2",
-        numEmployees: 2,
-        description: "Desc2",
-        logoUrl: "http://c2.img",
-      });
-  await Company.create(
-      {
-        handle: "c3",
-        name: "C3",
-        numEmployees: 3,
-        description: "Desc3",
-        logoUrl: "http://c3.img",
-      });
+  // create test companies and users
+  const numToCreate = 3;
+  await Promise.all(_.range(1, numToCreate + 1).reduce((acc, n) => {
+    acc.push(Company.create({
+      handle: `c${n}`,
+      name: `C${n}`,
+      numEmployees: n,
+      description: `Desc${n}`,
+      logoUrl: `http://c${n}.img`
+    }));
+    acc.push(User.register({
+      username: `u${n}`,
+      firstName: `U${n}F`,
+      lastName: `U${n}L`,
+      email: `user${n}@user.com`,
+      password: `password${n}`,
+      isAdmin: n % 2 === 0 ? true : false,
+    }));
+    return acc;
+  }, []));
 
-  await User.register({
-    username: "u1",
-    firstName: "U1F",
-    lastName: "U1L",
-    email: "user1@user.com",
-    password: "password1",
-    isAdmin: false,
-  });
-  await User.register({
-    username: "u2",
-    firstName: "U2F",
-    lastName: "U2L",
-    email: "user2@user.com",
-    password: "password2",
-    isAdmin: true,
-  });
-  await User.register({
-    username: "u3",
-    firstName: "U3F",
-    lastName: "U3L",
-    email: "user3@user.com",
-    password: "password3",
-    isAdmin: false,
-  });
+  // create test jobs
+  const [j1, j2, j3] = await Promise.all(_.range(1, numToCreate + 1).reduce((acc, n) => {
+    acc.push(Job.create({
+      title: `j${n}`,
+      salary: n,
+      equity: n / 10,
+      companyHandle: `c1`
+    }));
+    return acc;
+  }, []));
+
+  // apply u1 for j1
+  // apply u2 for j1, j2
+  const jobs = await Promise.all([
+    User.applyForJob('u1', j1.id),
+    User.applyForJob('u2', j1.id),
+    User.applyForJob('u2', j2.id),
+  ]);
+
 }
 
 async function commonBeforeEach() {
@@ -74,9 +69,9 @@ async function commonAfterAll() {
   await db.end();
 }
 
-
 const u1Token = createToken({ username: "u1", isAdmin: false });
 const adminToken = createToken({ username: "u2", isAdmin: true });
+
 
 module.exports = {
   commonBeforeAll,
@@ -84,5 +79,5 @@ module.exports = {
   commonAfterEach,
   commonAfterAll,
   u1Token,
-  adminToken
+  adminToken,
 };

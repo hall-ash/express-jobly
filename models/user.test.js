@@ -64,7 +64,7 @@ describe("register", function () {
   };
 
   test("works", async function () {
-    let user = await User.register({
+    const user = await User.register({
       ...newUser,
       password: "password",
     });
@@ -76,7 +76,7 @@ describe("register", function () {
   });
 
   test("works: adds admin", async function () {
-    let user = await User.register({
+    const user = await User.register({
       ...newUser,
       password: "password",
       isAdmin: true,
@@ -132,14 +132,27 @@ describe("findAll", function () {
 /************************************** get */
 
 describe("get", function () {
-  test("works", async function () {
-    let user = await User.get("u1");
+  test("works for user with 1 job application", async function () {
+    const user = await User.get("u1");
     expect(user).toEqual({
       username: "u1",
       firstName: "U1F",
       lastName: "U1L",
       email: "u1@email.com",
       isAdmin: false,
+      jobs: [expect.any(Number),],
+    });
+  });
+
+  test("works for user with multiple job applications", async function () {
+    const user = await User.get("u2");
+    expect(user).toEqual({
+      username: "u2",
+      firstName: "U2F",
+      lastName: "U2L",
+      email: "u2@email.com",
+      isAdmin: false,
+      jobs: [expect.any(Number), expect.any(Number), expect.any(Number)],
     });
   });
 
@@ -164,18 +177,18 @@ describe("update", function () {
   };
 
   test("works", async function () {
-    let job = await User.update("u1", updateData);
-    expect(job).toEqual({
+    const user = await User.update("u1", updateData);
+    expect(user).toEqual({
       username: "u1",
       ...updateData,
     });
   });
 
   test("works: set password", async function () {
-    let job = await User.update("u1", {
+    const user = await User.update("u1", {
       password: "new",
     });
-    expect(job).toEqual({
+    expect(user).toEqual({
       username: "u1",
       firstName: "U1F",
       lastName: "U1L",
@@ -227,4 +240,64 @@ describe("remove", function () {
       expect(err instanceof NotFoundError).toBeTruthy();
     }
   });
+});
+
+/************************************** applyForJob */
+
+describe('applyForJob', () => {
+  
+  let j2;
+  let username = 'u1';
+
+  // get job
+  beforeAll(async () => {
+    const jobResult = await db.query(`
+      SELECT id
+      FROM JOBS
+      WHERE title = 'j2'
+    `);
+    j2 = jobResult.rows[0];
+  })
+
+  test('works', async () => {
+
+    // apply for job
+    const jobId = await User.applyForJob(username, j2.id);
+    expect(jobId).toEqual(j2.id);
+
+    // expect insert into applications table
+    const appResult = await db.query(`
+      SELECT *
+      FROM applications
+      WHERE username = $1 AND job_id = $2
+    `, [username, j2.id]);
+
+    expect(appResult.rows).toHaveLength(1);
+  });
+
+  test('throws error if invalid username', async () => {
+    try {
+      await User.applyForJob('invalid', j2.id);
+    } catch (e) {
+      expect(e instanceof NotFoundError).toBeTruthy();
+    }
+  });
+
+  test('throws error if invalid job id', async () => {
+    try {
+      await User.applyForJob(username, 0);
+    } catch (e) {
+      expect(e instanceof NotFoundError).toBeTruthy();
+    }
+  });
+
+  test('throws error if already applied to job', async () => {
+    username = 'u2'; // u2 already applied for j2
+
+    try {
+      await User.applyForJob(username, j2.id);
+    } catch (e) {
+      expect(e instanceof BadRequestError).toBeTruthy();
+    }
+  })
 });

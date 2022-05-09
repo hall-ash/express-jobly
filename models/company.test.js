@@ -2,7 +2,7 @@
 
 const db = require("../db.js");
 const { BadRequestError, NotFoundError } = require("../expressError");
-const Company = require("./company.js");
+const Company = require("./company");
 const {
   commonBeforeAll,
   commonBeforeEach,
@@ -51,6 +51,7 @@ describe("create", function () {
       await Company.create(newCompany);
       fail();
     } catch (err) {
+      console.log(err);
       expect(err instanceof BadRequestError).toBeTruthy();
     }
   });
@@ -87,7 +88,7 @@ describe("findAll", function () {
   });
 });
 
-/************************************** findAll */
+/************************************** filterBy */
 
 describe("filterBy", () => {
   test("filtering by name returns all companies with matching name (case-insensitive)", async () => {
@@ -212,14 +213,42 @@ describe("filterBy", () => {
 /************************************** get */
 
 describe("get", function () {
-  test("works", async function () {
-    let company = await Company.get("c1");
+  test("works for company with jobs", async function () {
+    const company = await Company.get("c1");
     expect(company).toEqual({
       handle: "c1",
       name: "C1",
       description: "Desc1",
       numEmployees: 1,
       logoUrl: "http://c1.img",
+      jobs: [
+        {
+          id: expect.any(Number),
+          title: 'j1',
+          salary: 90000,
+          equity: '0',
+          companyHandle: 'c1'
+        },
+        {
+          id: expect.any(Number),
+          title: 'j2',
+          salary: 50000,
+          equity: '0.1',
+          companyHandle: 'c1'
+        }
+      ]
+    });
+  });
+
+  test("works for company with no jobs", async () => {
+    const company = await Company.get("c2");
+    expect(company).toEqual({
+      handle: "c2",
+      name: "C2",
+      description: "Desc2",
+      numEmployees: 2,
+      logoUrl: "http://c2.img",
+      jobs: []
     });
   });
 

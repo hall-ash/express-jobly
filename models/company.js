@@ -2,7 +2,7 @@
 
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
-const { sqlForPartialUpdate, sqlForFilteringCompaniesBy } = require("../helpers/sql");
+const { sqlForPartialUpdate, sqlForFilterBy, checkDuplicate } = require("../helpers/sql");
 
 /** Related functions for companies. */
 
@@ -17,14 +17,9 @@ class Company {
    * */
 
   static async create({ handle, name, description, numEmployees, logoUrl }) {
-    const duplicateCheck = await db.query(
-          `SELECT handle
-           FROM companies
-           WHERE handle = $1`,
-        [handle]);
 
-    if (duplicateCheck.rows[0])
-      throw new BadRequestError(`Duplicate company: ${handle}`);
+    // throws BadRequestError if trying to create duplicate
+    await checkDuplicate('companies', 'handle', handle);
 
     const result = await db.query(
           `INSERT INTO companies
@@ -66,7 +61,20 @@ class Company {
    */
   static async filterBy(criteria) {
 
-    const { sqlConditions, values } = sqlForFilteringCompaniesBy(criteria);
+    // check for invalid criteria
+    const { minEmployees, maxEmployees } = criteria;
+    if (minEmployees && maxEmployees && minEmployees > maxEmployees) {
+      throw new BadRequestError("maxEmployees must be greater than or equal to minEmployees");
+    }
+
+    // mapping of criteria to sql statements
+    const criteriaToSql = {
+      name: 'name ILIKE',
+      minEmployees: 'num_employees >=',
+      maxEmployees: 'num_employees <='
+    };
+
+    const { whereClause, values } = sqlForFilterBy(criteria, criteriaToSql);
     
     const results = await db.query(`
       SELECT handle,
@@ -75,7 +83,7 @@ class Company {
              num_employees AS "numEmployees",
              logo_url AS "logoUrl"
       FROM companies
-      WHERE ${sqlConditions}
+      ${whereClause}
       ORDER BY name
     `, [...values]);
 
@@ -105,6 +113,13 @@ class Company {
 
     if (!company) throw new NotFoundError(`No company: ${handle}`);
 
+    const jobResults = await db.query(`
+      SELECT id, title, salary, equity, company_handle AS "companyHandle"
+      FROM jobs
+      WHERE company_handle = $1
+    `, [company.handle]);
+
+    company.jobs = jobResults.rows;
     return company;
   }
 

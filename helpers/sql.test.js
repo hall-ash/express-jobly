@@ -2,9 +2,10 @@
  * unit tests for sql helper methods
  */
 
-const { sqlForPartialUpdate, sqlForFilteringCompaniesBy } = require('./sql');
+const db = require('../db');
+const { sqlForPartialUpdate, sqlForFilterBy } = require('./sql');
 
-
+afterAll(async () => await db.end());
 
 describe("sqlForPartialUpdate unit tests", () => {
   const updateData = {
@@ -109,7 +110,7 @@ describe("sqlForPartialUpdate unit tests", () => {
 });
 // end sqlForPartialUpdate unit tests
 
-describe("sqlForFilteringCompaniesBy unit tests", () => {
+describe("sqlForFilterBy unit tests", () => {
   let criteria;
   let expected;
   const criteriaToSql = {
@@ -126,17 +127,17 @@ describe("sqlForFilteringCompaniesBy unit tests", () => {
     };
 
     expected = {
-      sqlConditions: 'name ILIKE $1 AND num_employees >= $2 AND num_employees <= $3',
-      values: ['%company name%', 10, 999]
+      whereClause: `WHERE name ILIKE CONCAT('%', $1::text, '%') AND num_employees >= $2 AND num_employees <= $3`,
+      values: ['company name', 10, 999]
     };
 
   });
   
-  describe("sqlForFilteringCompaniesBy with valid inputs", () => {
+  describe("sqlForFilterBy with valid inputs", () => {
     
     test("returns the correct sql conditions and their values in order with all criteria provided", () => {
 
-      const output = sqlForFilteringCompaniesBy(criteria);
+      const output = sqlForFilterBy(criteria, criteriaToSql);
 
       expect(output).toEqual(expected);
     });
@@ -146,33 +147,25 @@ describe("sqlForFilteringCompaniesBy unit tests", () => {
 
         const criterion = {};
         criterion[k] = v;
-        const { sqlConditions, values } = sqlForFilteringCompaniesBy(criterion);
+        const { whereClause, values } = sqlForFilterBy(criterion, criteriaToSql);
         
-        expect(sqlConditions).toBe(`${criteriaToSql[k]} $1`);
-        typeof(values[0]) === 'string' ? expect(values[0]).toContain(criteria[k]) 
-                                        : expect(values[0]).toEqual(criteria[k]);
+        expect(whereClause).toContain(criteriaToSql[k]);
+        expect(values[0]).toEqual(criteria[k]);
         expect(values).toHaveLength(1);
       });
     });
   });
   
-  describe("sqlForFilteringCompanniesBy with invalid inputs", () => {
-    test("throws error if no properties in criteria match minEmployees, maxEmployees, or name", () => {
+  describe("sqlForFilterBy with invalid inputs", () => {
+    test("throws error if no properties in criteria match properties in 'criteriaToSql'", () => {
 
-      
-      expect(() => sqlForFilteringCompaniesBy({ age: 99 })).toThrow('Could not filter by criteria provided');
-    });
-
-    test("throws error if minEmployees > maxEmployees", () => {
-      criteria.minEmployees = 9999;
-
-      expect(() => sqlForFilteringCompaniesBy(criteria)).toThrow('maxEmployees must be greater than or equal to minEmployees')
+      expect(() => sqlForFilterBy({ age: 99 }, criteriaToSql)).toThrow('Could not filter by criteria provided');
     });
 
     test("returns the correct sql conditions and their values in order when given an additional invalid criterion", () => {
       criteria.invalid = 'invalid'; // add a new invalid criterion
 
-      const output = sqlForFilteringCompaniesBy(criteria);
+      const output = sqlForFilterBy(criteria, criteriaToSql);
 
       expect(output).toEqual(expected);
     })

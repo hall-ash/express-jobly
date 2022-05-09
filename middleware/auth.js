@@ -17,16 +17,15 @@ const { UnauthorizedError } = require("../expressError");
 
 function authenticateJWT(req, res, next) {
   try {
-
     const authHeader = req.headers && req.headers.authorization; // get JWT from req header
   
     if (authHeader) {
-      const token = authHeader.replace(/^[Bb]earer /, "").trim(); // remove 'Bearer' and trailing whitespace
+      const token = authHeader.replace(/^[Bb]earer /, "").trim(); // remove 'B/bearer' and whitespace
       res.locals.user = jwt.verify(token, SECRET_KEY);
     }
     return next();
-  } catch (err) {
-    return next();
+  } catch (err) { // if no token or invalid token, go to next handler
+    return next(); // don't return error
   }
 }
 
@@ -43,6 +42,27 @@ function ensureLoggedIn(req, res, next) {
     return next(err);
   }
 }
+
+/** Middleware to ensure that access to a user's account
+ * for reading, updating, or deleting is only availble
+ * to that user or an admin.
+ * 
+ * Raises 401 Unauthorized, otherwise.
+ */
+function ensureAuthUserOrAdmin(req, res, next) {
+  try {
+    const { username } = req.params;
+    const { user } = res.locals;
+    if (user && (user.username === username || user.isAdmin)) {
+      return next();
+    }
+    throw new UnauthorizedError();
+
+  } catch (err) {
+    return next(err);
+  }
+}
+
 
 /** Middleware to ensure that the user is an admin.
  * 
@@ -66,5 +86,6 @@ const ensureAdmin = (req, res, next) => {
 module.exports = {
   authenticateJWT,
   ensureLoggedIn,
-  ensureAdmin
+  ensureAdmin,
+  ensureAuthUserOrAdmin,
 };

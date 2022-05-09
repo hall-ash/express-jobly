@@ -12,7 +12,7 @@ const {
   commonAfterEach,
   commonAfterAll,
   u1Token,
-  adminToken
+  adminToken,
 } = require("./_testCommon");
 
 beforeAll(commonBeforeAll);
@@ -163,7 +163,7 @@ describe("GET /users", function () {
   test("unauth for non-admin user", async function () {
     const resp = await request(app)
         .get("/users")
-        .set("authorization", `Bearer ${adminToken}`);
+        .set("authorization", `Bearer ${u1Token}`);
 
     expect(resp.statusCode).toEqual(401);
   });
@@ -200,6 +200,9 @@ describe("GET /users/:username", function () {
         lastName: "U1L",
         email: "user1@user.com",
         isAdmin: false,
+        jobs: [
+          expect.any(Number),
+        ],
       },
     });
   });
@@ -215,6 +218,9 @@ describe("GET /users/:username", function () {
         lastName: "U1L",
         email: "user1@user.com",
         isAdmin: false,
+        jobs: [
+          expect.any(Number),
+        ],
       },
     });
   });
@@ -395,4 +401,81 @@ describe("DELETE /users/:username", function () {
         .set("authorization", `Bearer ${adminToken}`);
     expect(resp.statusCode).toEqual(404);
   });
+});
+
+/************************************** POST /users/:username/:id */
+
+describe("POST /users/:username/:id", () => {
+ 
+  let j3ID;
+  beforeAll(async () => {
+    // get job id
+    const idResult = await db.query(`
+      SELECT id
+      FROM jobs
+      WHERE title = 'j3'
+    `);
+
+    j3ID = idResult.rows[0].id;
+  });
+
+  test("authorized for admin: apply for job", async function () {
+    // u2 is admin
+    
+    const resp = await request(app)
+        .post(`/users/u2/${j3ID}`)
+        .set("authorization", `Bearer ${adminToken}`);
+
+    expect(resp.statusCode).toEqual(201);
+    expect(resp.body).toEqual({ applied: j3ID });
+  });
+
+  test("authorized for admin: apply another user for job", async function () {
+    const resp = await request(app)
+        .post(`/users/u1/${j3ID}`)
+        .set("authorization", `Bearer ${adminToken}`);
+    
+    expect(resp.statusCode).toEqual(201);
+    expect(resp.body).toEqual({ applied: j3ID });
+  });
+
+  test("authorized for non-admin user: apply for job", async function () {
+    const resp = await request(app)
+        .post(`/users/u1/${j3ID}`)
+        .set("authorization", `Bearer ${u1Token}`);
+
+    expect(resp.statusCode).toEqual(201);
+    expect(resp.body).toEqual({ applied: j3ID });
+  });
+
+  test("unauth for non-admin user: apply another user for job", async function () {
+    const resp = await request(app)
+        .post(`/users/u2/${j3ID}`)
+        .set("authorization", `Bearer ${u1Token}`);
+    expect(resp.statusCode).toEqual(401);
+  });
+
+  test("unauth for anon", async function () {
+    const resp = await request(app)
+        .post(`/users/u2/${j3ID}`);
+
+    expect(resp.statusCode).toEqual(401);
+  });
+
+  test("returns 404 if job id cannot be found", async () => {
+    const resp = await request(app)
+    .post(`/users/u1/0`)
+    .set("authorization", `Bearer ${u1Token}`);
+
+    expect(resp.statusCode).toEqual(404);
+  });
+
+  test("returns 404 if username cannot be found", async () => {
+    const resp = await request(app)
+    .post(`/users/invalid/${j3ID}`)
+    .set("authorization", `Bearer ${adminToken}`);
+
+    expect(resp.statusCode).toEqual(404);
+  });
+
 });

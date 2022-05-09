@@ -2,7 +2,7 @@
 
 const db = require("../db");
 const bcrypt = require("bcrypt");
-const { sqlForPartialUpdate } = require("../helpers/sql");
+const { sqlForPartialUpdate, checkDuplicate } = require("../helpers/sql");
 const {
   NotFoundError,
   BadRequestError,
@@ -10,6 +10,7 @@ const {
 } = require("../expressError");
 
 const { BCRYPT_WORK_FACTOR } = require("../config.js");
+const app = require("../app");
 
 /** Related functions for users. */
 
@@ -118,7 +119,7 @@ class User {
   /** Given a username, return data about user.
    *
    * Returns { username, first_name, last_name, is_admin, jobs }
-   *   where jobs is { id, title, company_handle, company_name, state }
+   *   where jobs is [id1, id2, ...]
    *
    * Throws NotFoundError if user not found.
    **/
@@ -139,6 +140,15 @@ class User {
 
     if (!user) throw new NotFoundError(`No user: ${username}`);
 
+    const jobResults = await db.query(`
+      SELECT job_id AS id
+      FROM applications
+      WHERE username = $1
+    `, [username]);
+
+    // set jobs to an array of job ids
+    user.jobs = jobResults.rows.map(job => job.id);
+
     return user;
   }
 
@@ -156,7 +166,7 @@ class User {
    *
    * WARNING: this function can set a new password or make a user an admin.
    * Callers of this function must be certain they have validated inputs to this
-   * or a serious security risks are opened.
+   * or serious security risks are opened.
    */
 
   static async update(username, data) {
@@ -193,7 +203,7 @@ class User {
   /** Delete given user from database; returns undefined. */
 
   static async remove(username) {
-    let result = await db.query(
+    const result = await db.query(
           `DELETE
            FROM users
            WHERE username = $1
@@ -203,6 +213,49 @@ class User {
     const user = result.rows[0];
 
     if (!user) throw new NotFoundError(`No user: ${username}`);
+  }
+
+  /**
+   * Apply for a job.
+   * 
+   * Throws NotFoundError if username or job not found.
+   * Throws BadRequestError if user has already applied for the job.
+   */
+  static async applyForJob(username, jobId) {
+    // check username exists
+    const userResult = await db.query(`
+      SELECT username
+      FROM users
+      WHERE username = $1
+    `, [username]);
+    if (!userResult.rows[0]) throw new NotFoundError(`No user: ${username}`);
+
+    // check job exists
+    const jobResult = await db.query(`
+      SELECT id
+      FROM jobs
+      WHERE id = $1
+    `, [jobId]);
+    if (!jobResult.rows[0]) throw new NotFoundError(`No job with id: ${jobId}`);
+
+    // check for duplicate
+    const isDuplicate = await db.query(`
+      SELECT *
+      FROM applications
+      WHERE (username, job_id) = ($1, $2)
+    `, [username, jobId]);
+    if (isDuplicate.rows[0]) throw new BadRequestError('Duplicate job application');
+
+    // insert new record into applications
+    const result = await db.query(`
+      INSERT INTO applications
+      (username, job_id) 
+      VALUES ($1, $2)
+      RETURNING job_id
+    `, [username, jobId])
+
+    const application = result.rows[0];
+    return application.job_id;
   }
 }
 
