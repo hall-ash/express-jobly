@@ -72,7 +72,7 @@ const sqlForFilterBy = (criteria, criteriaToSql) => {
   
   const values = []; // operand values for the where clause
   
-  let paramNum = 1;
+  let paramNum = 1; //params are 1-indexed
   const sqlConditions = validCriteria.filter(c => criteria[c] !== false && criteria[c] !== 'false') // ignore criteria set to false
     .map(c => {
       const sql = criteriaToSql[c];
