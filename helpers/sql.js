@@ -60,8 +60,8 @@ const validateArgs = (dataToUpdate, jsToSql) => {
  * 
  * Throws a BadRequestError if no criteria are valid.
  * 
- * @param {{}} criteria The criteria to filter records by. 
- * @param {{}} criteriaToSql The mapping of a criterion to its sql statement. 
+ * @param {*} criteria The criteria to filter records by. 
+ * @param {*} criteriaToSql The mapping of a criterion to its sql statement. 
  */
 const sqlForFilterBy = (criteria, criteriaToSql) => {
 
