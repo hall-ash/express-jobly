@@ -10,9 +10,10 @@ const { createToken } = require("../helpers/tokens");
 const Job = require("../models/job.js");
 
 async function commonBeforeAll() {
+   // noinspection SqlWithoutWhere
+
   // clear data in tables
   const tables = ['companies', 'users', 'jobs', 'applications'];
-  // noinspection SqlWithoutWhere
   await Promise.all(tables.map(t => db.query(`DELETE FROM ${t}`)));
 
   // create test companies and users
@@ -49,7 +50,7 @@ async function commonBeforeAll() {
 
   // apply u1 for j1
   // apply u2 for j1, j2
-  const jobs = await Promise.all([
+  await Promise.all([
     User.applyForJob('u1', j1.id),
     User.applyForJob('u2', j1.id),
     User.applyForJob('u2', j2.id),
